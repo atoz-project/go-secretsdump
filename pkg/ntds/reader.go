@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/atoz-project/go-secretsdump/ese"
+	"github.com/atoz-project/go-secretsdump/internal/crypto"
+	"github.com/atoz-project/go-secretsdump/pkg/ese"
 )
 
 // Reader reads NTDS.dit databases and iterates over domain user hashes.
@@ -142,8 +143,8 @@ func (rd *Reader) decryptRecord(rec *ese.Record) (*DomainHash, error) {
 	}
 	dh.RID = rid
 
-	dh.LMHash = decryptHashOrDefault(rec.Bytes(colDBCSPwd), rd.pek, rid, EmptyLM)
-	dh.NTHash = decryptHashOrDefault(rec.Bytes(colUnicodePwd), rd.pek, rid, EmptyNT)
+	dh.LMHash = decryptHashOrDefault(rec.Bytes(colDBCSPwd), rd.pek, rid, crypto.EmptyLM)
+	dh.NTHash = decryptHashOrDefault(rec.Bytes(colUnicodePwd), rd.pek, rid, crypto.EmptyNT)
 
 	// Account name.
 	accountName := rec.String(colSAMAccountName)

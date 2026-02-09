@@ -6,13 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/atoz-project/go-secretsdump/internal/descrypto"
-)
-
-// Well-known empty hash values.
-var (
-	emptyLM = []byte{0xaa, 0xd3, 0xb4, 0x35, 0xb5, 0x14, 0x04, 0xee, 0xaa, 0xd3, 0xb4, 0x35, 0xb5, 0x14, 0x04, 0xee}
-	emptyNT = []byte{0x31, 0xd6, 0xcf, 0xe0, 0xd1, 0x6a, 0xe9, 0x31, 0xb7, 0x3c, 0x59, 0xd7, 0xe0, 0xc0, 0x89, 0xc0}
+	"github.com/atoz-project/go-secretsdump/internal/crypto"
 )
 
 // Constants for SAM key derivation.
@@ -80,7 +74,7 @@ func deriveSysKey(fData, bootKey []byte) ([]byte, error) {
 		copy(aesKey.Data[:], keyData[32:64])
 
 		cipherData := aesKey.Data[:aesKey.DataLen]
-		dec, err := descrypto.DecryptAES(bootKey, cipherData, aesKey.Salt[:])
+		dec, err := crypto.DecryptAES(bootKey, cipherData, aesKey.Salt[:])
 		if err != nil {
 			return nil, fmt.Errorf("AES decrypt sys key: %w", err)
 		}
@@ -149,7 +143,7 @@ func decryptSAMHash(hashData, sysKey []byte, rid uint32) ([]byte, error) {
 		return nil, nil
 	}
 
-	raw, err := descrypto.DecryptAES(sysKey, encHash, info.Salt[:])
+	raw, err := crypto.DecryptAES(sysKey, encHash, info.Salt[:])
 	if err != nil {
 		return nil, fmt.Errorf("AES decrypt hash: %w", err)
 	}
@@ -159,7 +153,3 @@ func decryptSAMHash(hashData, sysKey []byte, rid uint32) ([]byte, error) {
 	return raw[:16], nil
 }
 
-// removeDES performs the final DES two-key decryption using the RID.
-func removeDES(data []byte, rid uint32) ([]byte, error) {
-	return descrypto.RemoveDES(data, rid)
-}

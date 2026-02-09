@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/atoz-project/go-secretsdump/internal/crypto"
 	"golang.org/x/text/encoding/unicode"
 	"www.velocidex.com/golang/regparser"
 )
@@ -38,7 +39,7 @@ func Open(samReader, systemReader io.Reader) (*Reader, error) {
 	}
 
 	// Extract boot key from SYSTEM hive.
-	bootKey, err := extractBootKey(systemData)
+	bootKey, err := ExtractBootKey(systemData)
 	if err != nil {
 		return nil, fmt.Errorf("extract boot key: %w", err)
 	}
@@ -108,11 +109,11 @@ func (r *Reader) DumpAll() ([]LocalHash, error) {
 
 		// Decrypt NTLM hash.
 		ntlmData := v.getField(v.ntlmHash, v.data)
-		ntHash := emptyNT
+		ntHash := crypto.EmptyNT
 		if len(ntlmData) > 0 {
 			decrypted, err := decryptSAMHash(ntlmData, sysKey, rid)
 			if err == nil && decrypted != nil {
-				plainHash, err := removeDES(decrypted, rid)
+				plainHash, err := crypto.RemoveDES(decrypted, rid)
 				if err == nil {
 					ntHash = plainHash
 				}
@@ -121,11 +122,11 @@ func (r *Reader) DumpAll() ([]LocalHash, error) {
 
 		// Decrypt LM hash.
 		lmData := v.getField(v.lmHash, v.data)
-		lmHash := emptyLM
+		lmHash := crypto.EmptyLM
 		if len(lmData) > 0 {
 			decrypted, err := decryptSAMHash(lmData, sysKey, rid)
 			if err == nil && decrypted != nil {
-				plainHash, err := removeDES(decrypted, rid)
+				plainHash, err := crypto.RemoveDES(decrypted, rid)
 				if err == nil {
 					lmHash = plainHash
 				}
@@ -145,65 +146,6 @@ func (r *Reader) DumpAll() ([]LocalHash, error) {
 		results = []LocalHash{}
 	}
 	return results, nil
-}
-
-// extractBootKey extracts the 16-byte boot key from the SYSTEM hive.
-func extractBootKey(systemData []byte) ([]byte, error) {
-	reg, err := regparser.NewRegistry(bytes.NewReader(systemData))
-	if err != nil {
-		return nil, fmt.Errorf("parse SYSTEM hive: %w", err)
-	}
-
-	// Find current control set.
-	controlSet := "ControlSet001"
-	selectKey := reg.OpenKey("Select")
-	if selectKey != nil {
-		for _, v := range selectKey.Values() {
-			if strings.EqualFold(v.ValueName(), "Current") {
-				vd := v.ValueData()
-				if vd != nil && vd.Error == nil {
-					num := vd.Uint64
-					if num > 0 && num < 10 {
-						controlSet = fmt.Sprintf("ControlSet%03d", num)
-					}
-				}
-			}
-		}
-	}
-
-	lsaPath := controlSet + "\\Control\\Lsa"
-	keyNames := []string{"JD", "Skew1", "GBG", "Data"}
-
-	var scrambledKey []byte
-	for _, name := range keyNames {
-		path := lsaPath + "\\" + name
-		key := reg.OpenKey(path)
-		if key == nil {
-			return nil, fmt.Errorf("LSA key not found: %s", path)
-		}
-		classLen := key.ClassLength()
-		classOff := key.Class()
-		if classLen == 0 {
-			return nil, fmt.Errorf("empty class name for %s", path)
-		}
-		className := regparser.ParseUTF16String(reg.Reader, int64(classOff)+4096+4, int64(classLen))
-		decoded, err := hex.DecodeString(className)
-		if err != nil {
-			return nil, fmt.Errorf("decode class name for %s: %w", name, err)
-		}
-		scrambledKey = append(scrambledKey, decoded...)
-	}
-
-	if len(scrambledKey) < 16 {
-		return nil, fmt.Errorf("boot key too short: %d bytes", len(scrambledKey))
-	}
-
-	perm := []int{8, 5, 4, 2, 11, 9, 13, 3, 0, 6, 1, 12, 14, 10, 15, 7}
-	bootKey := make([]byte, 16)
-	for i, p := range perm {
-		bootKey[i] = scrambledKey[p]
-	}
-	return bootKey, nil
 }
 
 // getRegValue reads a named value from a registry key.

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/atoz-project/go-secretsdump/internal/descrypto"
+	"github.com/atoz-project/go-secretsdump/internal/crypto"
 	utfenc "golang.org/x/text/encoding/unicode"
 )
 
@@ -57,7 +57,7 @@ func decryptPEK(pekListRaw, bootKey []byte) ([][]byte, error) {
 
 	case bytes.Equal(header[:4], []byte{3, 0, 0, 0}):
 		// Windows 2016+: AES-based PEK decryption.
-		dec, err := descrypto.DecryptAES(bootKey, encryptedPek, keyMaterial)
+		dec, err := crypto.DecryptAES(bootKey, encryptedPek, keyMaterial)
 		if err != nil {
 			return nil, fmt.Errorf("AES decrypt PEK: %w", err)
 		}
@@ -129,7 +129,7 @@ func decryptHash(data []byte, pek [][]byte, rid uint32) ([]byte, error) {
 			return nil, fmt.Errorf("W16 hash data too short")
 		}
 		encHash := data[28:44] // 16 bytes of encrypted hash
-		tmpHash, err = descrypto.DecryptAES(pek[pekIdx], encHash, ch.keyMaterial[:])
+		tmpHash, err = crypto.DecryptAES(pek[pekIdx], encHash, ch.keyMaterial[:])
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +144,7 @@ func decryptHash(data []byte, pek [][]byte, rid uint32) ([]byte, error) {
 	if len(tmpHash) < 16 {
 		return nil, fmt.Errorf("decrypted hash too short: %d bytes", len(tmpHash))
 	}
-	return descrypto.RemoveDES(tmpHash[:16], rid)
+	return crypto.RemoveDES(tmpHash[:16], rid)
 }
 
 // decryptHashHistory decrypts password history hashes.
@@ -169,7 +169,7 @@ func decryptHashHistory(data []byte, pek [][]byte, rid uint32) ([][]byte, error)
 		if len(data) < 28 {
 			return nil, nil
 		}
-		plainHist, err = descrypto.DecryptAES(pek[pekIdx], data[28:], ch.keyMaterial[:])
+		plainHist, err = crypto.DecryptAES(pek[pekIdx], data[28:], ch.keyMaterial[:])
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +183,7 @@ func decryptHashHistory(data []byte, pek [][]byte, rid uint32) ([][]byte, error)
 	var hashes [][]byte
 	// Skip first 16 bytes (current hash), then each 16 bytes is a historical hash.
 	for i := 16; i+16 <= len(plainHist); i += 16 {
-		h, err := descrypto.RemoveDES(plainHist[i:i+16], rid)
+		h, err := crypto.RemoveDES(plainHist[i:i+16], rid)
 		if err != nil {
 			continue
 		}
@@ -223,7 +223,7 @@ func decryptSupplementalCredentials(data []byte, pek [][]byte, username string) 
 		if int(pekIdx) >= len(pek) {
 			return nil, "", fmt.Errorf("PEK index out of range")
 		}
-		plainBytes, err = descrypto.DecryptAES(pek[pekIdx], ch.encryptedHash[4:], ch.keyMaterial[:])
+		plainBytes, err = crypto.DecryptAES(pek[pekIdx], ch.encryptedHash[4:], ch.keyMaterial[:])
 		if err != nil {
 			return nil, "", err
 		}

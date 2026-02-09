@@ -6,11 +6,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/atoz-project/go-secretsdump/ese"
+	"github.com/atoz-project/go-secretsdump/pkg/ese"
 )
 
 func TestOpenAndIterate(t *testing.T) {
-	f, err := os.Open("../testdata/ntds.dit")
+	f, err := os.Open("testdata/ntds.dit")
 	if err != nil {
 		t.Skip("testdata/ntds.dit not found:", err)
 	}
